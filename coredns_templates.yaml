@@ -10,68 +10,6 @@ zabbix_export:
       groups:
         - name: Templates/Applications
       items:
-        - uuid: 0b5166f4cf2d4802be78f00160a375da
-          name: 'CoreDNS: Cache entries denial'
-          type: DEPENDENT
-          key: coredns.cache.entries.denial
-          preprocessing:
-            - type: PROMETHEUS_PATTERN
-              parameters:
-                - 'coredns_cache_entries{type="denial"}'
-                - value
-                - ''
-          master_item:
-            key: coredns.raw
-          tags:
-            - tag: Application
-              value: DNS
-        - uuid: 5d580d2b24c24cd8837f31e2f8cd6fa7
-          name: 'CoreDNS: Cache entries success'
-          type: DEPENDENT
-          key: coredns.cache.entries.success
-          preprocessing:
-            - type: PROMETHEUS_PATTERN
-              parameters:
-                - 'coredns_cache_entries{type="success"}'
-                - value
-                - ''
-          master_item:
-            key: coredns.raw
-          tags:
-            - tag: Application
-              value: DNS
-        - uuid: 3369743fb4694a3d8012f7cd9890b487
-          name: 'CoreDNS: Cache cache hits denial'
-          type: DEPENDENT
-          key: coredns.cache.hits.denial
-          preprocessing:
-            - type: PROMETHEUS_PATTERN
-              parameters:
-                - 'coredns_cache_hits_total{type="denial"}'
-                - value
-                - ''
-            - type: SIMPLE_CHANGE
-          master_item:
-            key: coredns.raw
-          tags:
-            - tag: Application
-              value: DNS
-        - uuid: d3421df5c9db4d73b4ca79565ac94963
-          name: 'CoreDNS: Cache cache hits success'
-          type: DEPENDENT
-          key: coredns.cache.hits.success
-          preprocessing:
-            - type: PROMETHEUS_PATTERN
-              parameters:
-                - 'coredns_cache_hits_total{type="success"}'
-                - value
-                - ''
-            - type: SIMPLE_CHANGE
-          master_item:
-            key: coredns.raw
-          tags:
-            - tag: Application
-              value: DNS
         - uuid: fa16cdbb65d946999985943c67da04af
           name: 'CoreDNS: Metrics raw'
           type: HTTP_AGENT
@@ -3006,6 +2944,84 @@ zabbix_export:
             - type: PROMETHEUS_TO_JSON
               parameters:
                 - coredns_dns_request_duration_seconds_bucket
+    - uuid: 442c2489f687426a93916ad0fe701a2b
+      template: CoreDNS Cache
+      name: CoreDNS Cache
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 5ce45ea52a4a48d4a8870d41002af84d
+          name: 'CoreDNS: Cache metrics raw'
+          type: HTTP_AGENT
+          key: coredns.cache.raw
+          history: '0'
+          value_type: TEXT
+          url: 'http://{HOST.CONN}:9253/metrics'
+          tags:
+            - tag: Application
+              value: DNS
+        - uuid: 0b5166f4cf2d4802be78f00160a375da
+          name: 'CoreDNS: Cache entries denial'
+          type: DEPENDENT
+          key: coredns.cache.entries.denial
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'coredns_cache_entries{type="denial"}'
+                - value
+                - ''
+          master_item:
+            key: coredns.cache.raw
+          tags:
+            - tag: Application
+              value: DNS
+        - uuid: 5d580d2b24c24cd8837f31e2f8cd6fa7
+          name: 'CoreDNS: Cache entries success'
+          type: DEPENDENT
+          key: coredns.cache.entries.success
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'coredns_cache_entries{type="success"}'
+                - value
+                - ''
+          master_item:
+            key: coredns.cache.raw
+          tags:
+            - tag: Application
+              value: DNS
+        - uuid: 3369743fb4694a3d8012f7cd9890b487
+          name: 'CoreDNS: Cache cache hits denial'
+          type: DEPENDENT
+          key: coredns.cache.hits.denial
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'coredns_cache_hits_total{type="denial"}'
+                - value
+                - ''
+            - type: SIMPLE_CHANGE
+          master_item:
+            key: coredns.cache.raw
+          tags:
+            - tag: Application
+              value: DNS
+        - uuid: d3421df5c9db4d73b4ca79565ac94963
+          name: 'CoreDNS: Cache cache hits success'
+          type: DEPENDENT
+          key: coredns.cache.hits.success
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'coredns_cache_hits_total{type="success"}'
+                - value
+                - ''
+            - type: SIMPLE_CHANGE
+          master_item:
+            key: coredns.cache.raw
+          tags:
+            - tag: Application
+              value: DNS
   graphs:
     - uuid: 5095ca9c11de44d8ad8ac82616ec14c9
       name: 'CoreDNS: Cache entries'
@@ -3013,13 +3029,13 @@ zabbix_export:
         - color: 199C0D
           calc_fnc: ALL
           item:
-            host: CoreDNS
+            host: CoreDNS Cache
             key: coredns.cache.entries.success
         - sortorder: '1'
           color: F63100
           calc_fnc: ALL
           item:
-            host: CoreDNS
+            host: CoreDNS Cache
             key: coredns.cache.entries.denial
     - uuid: ee34dccb023942eaa8f194b44fd27c62
       name: 'CoreDNS: Cache hits'
@@ -3027,11 +3043,11 @@ zabbix_export:
         - color: 199C0D
           calc_fnc: ALL
           item:
-            host: CoreDNS
+            host: CoreDNS Cache
             key: coredns.cache.hits.success
         - sortorder: '1'
           color: F63100
           calc_fnc: ALL
           item:
-            host: CoreDNS
+            host: CoreDNS Cache
             key: coredns.cache.hits.denial
