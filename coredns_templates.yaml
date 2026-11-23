@@ -684,6 +684,24 @@ zabbix_export:
               tags:
                 - tag: Application
                   value: DNS
+            - uuid: c25485ce36824b7fb8177e72490b5118
+              name: 'DNS requests [IPv4/tcp/SVCB] for {#SERVER} {#ZONE} {#VIEW}'
+              type: DEPENDENT
+              key: 'coredns.request.count[ipv4,tcp,{#SERVER},{#ZONE},{#VIEW},SVCB]'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'coredns_dns_requests_total{family="1",proto="tcp",server="{#SERVER}",type="SVCB",view="{#VIEW}",zone="{#ZONE}"}'
+                    - value
+                    - ''
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: SIMPLE_CHANGE
+              master_item:
+                key: coredns.raw
+              tags:
+                - tag: Application
+                  value: DNS
             - uuid: 43af5d0bd4c44d45a2e00bb0475c4c6e
               name: 'DNS requests [IPv4/tcp/IXFR] for {#SERVER} {#ZONE} {#VIEW}'
               type: DEPENDENT
@@ -1026,6 +1044,24 @@ zabbix_export:
               tags:
                 - tag: Application
                   value: DNS
+            - uuid: 7cc158db230845d6b91cfe12317666d8
+              name: 'DNS requests [IPv4/udp/SVCB] for {#SERVER} {#ZONE} {#VIEW}'
+              type: DEPENDENT
+              key: 'coredns.request.count[ipv4,udp,{#SERVER},{#ZONE},{#VIEW},SVCB]'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'coredns_dns_requests_total{family="1",proto="udp",server="{#SERVER}",type="SVCB",view="{#VIEW}",zone="{#ZONE}"}'
+                    - value
+                    - ''
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: SIMPLE_CHANGE
+              master_item:
+                key: coredns.raw
+              tags:
+                - tag: Application
+                  value: DNS
             - uuid: 2289d8519642416ea1e076b7d14f61d3
               name: 'DNS requests [IPv4/udp/IXFR] for {#SERVER} {#ZONE} {#VIEW}'
               type: DEPENDENT
@@ -1323,6 +1359,11 @@ zabbix_export:
                   item:
                     host: CoreDNS
                     key: 'coredns.request.count[ipv4,tcp,{#SERVER},{#ZONE},{#VIEW},other]'
+                - sortorder: '19'
+                  color: '008B8B'
+                  item:
+                    host: CoreDNS
+                    key: 'coredns.request.count[ipv4,tcp,{#SERVER},{#ZONE},{#VIEW},SVCB]'
             - uuid: f030f777f1e24d2a94b1061e2ad17533
               name: 'DNS requests IPv4/UDP for {#SERVER} {#ZONE} {#VIEW}'
               type: STACKED
@@ -1421,6 +1462,11 @@ zabbix_export:
                   item:
                     host: CoreDNS
                     key: 'coredns.request.count[ipv4,udp,{#SERVER},{#ZONE},{#VIEW},other]'
+                - sortorder: '19'
+                  color: '008B8B'
+                  item:
+                    host: CoreDNS
+                    key: 'coredns.request.count[ipv4,udp,{#SERVER},{#ZONE},{#VIEW},SVCB]'
           master_item:
             key: coredns.raw
           lld_macro_paths:
@@ -1578,6 +1624,24 @@ zabbix_export:
                 - type: PROMETHEUS_PATTERN
                   parameters:
                     - 'coredns_dns_requests_total{family="2",proto="tcp",server="{#SERVER}",type="HTTPS",view="{#VIEW}",zone="{#ZONE}"}'
+                    - value
+                    - ''
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: SIMPLE_CHANGE
+              master_item:
+                key: coredns.raw
+              tags:
+                - tag: Application
+                  value: DNS
+            - uuid: 3eb2f3c4f9b34805bee33b941da46e4c
+              name: 'DNS requests [IPv6/tcp/SVCB] for {#SERVER} {#ZONE} {#VIEW}'
+              type: DEPENDENT
+              key: 'coredns.request.count[ipv6,tcp,{#SERVER},{#ZONE},{#VIEW},SVCB]'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'coredns_dns_requests_total{family="2",proto="tcp",server="{#SERVER}",type="SVCB",view="{#VIEW}",zone="{#ZONE}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -1930,6 +1994,24 @@ zabbix_export:
               tags:
                 - tag: Application
                   value: DNS
+            - uuid: d5415def653d45d197e6c17b1dc498d4
+              name: 'DNS requests [IPv6/udp/SVCB] for {#SERVER} {#ZONE} {#VIEW}'
+              type: DEPENDENT
+              key: 'coredns.request.count[ipv6,udp,{#SERVER},{#ZONE},{#VIEW},SVCB]'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'coredns_dns_requests_total{family="2",proto="udp",server="{#SERVER}",type="SVCB",view="{#VIEW}",zone="{#ZONE}"}'
+                    - value
+                    - ''
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: SIMPLE_CHANGE
+              master_item:
+                key: coredns.raw
+              tags:
+                - tag: Application
+                  value: DNS
             - uuid: c6b96327706841f7aa64aec16b7fe5f9
               name: 'DNS requests [IPv6/udp/IXFR] for {#SERVER} {#ZONE} {#VIEW}'
               type: DEPENDENT
@@ -2227,6 +2309,11 @@ zabbix_export:
                   item:
                     host: CoreDNS
                     key: 'coredns.request.count[ipv6,tcp,{#SERVER},{#ZONE},{#VIEW},other]'
+                - sortorder: '19'
+                  color: '008B8B'
+                  item:
+                    host: CoreDNS
+                    key: 'coredns.request.count[ipv6,tcp,{#SERVER},{#ZONE},{#VIEW},SVCB]'
             - uuid: 4e23d41a14a5493794c527bff56f1626
               name: 'DNS requests IPv6/UDP for {#SERVER} {#ZONE} {#VIEW}'
               type: STACKED
@@ -2325,6 +2412,11 @@ zabbix_export:
                   item:
                     host: CoreDNS
                     key: 'coredns.request.count[ipv6,udp,{#SERVER},{#ZONE},{#VIEW},other]'
+                - sortorder: '19'
+                  color: '008B8B'
+                  item:
+                    host: CoreDNS
+                    key: 'coredns.request.count[ipv6,udp,{#SERVER},{#ZONE},{#VIEW},SVCB]'
           master_item:
             key: coredns.raw
           lld_macro_paths:
