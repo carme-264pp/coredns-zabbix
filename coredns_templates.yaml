@@ -20,6 +20,90 @@ zabbix_export:
           tags:
             - tag: Application
               value: DNS
+        - uuid: 2df2b3d397c648ea89b0d63808e6f882
+          name: 'CoreDNS: Latency histograms'
+          type: DEPENDENT
+          key: coredns.latency.histograms
+          history: '0'
+          value_type: TEXT
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - '{__name__=~"^(coredns_(dns|proxy)_request_duration_seconds_(bucket|count|sum)|process_start_time_seconds)$"}'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var groups = {dns: Object.create(null), forward: Object.create(null)};
+                  var processStart = null;
+                  var scrapeId = Date.now();
+
+                  JSON.parse(value).forEach(function (row) {
+                      var metric = row.name;
+                      var sample = Number(row.value);
+                      if (metric === 'process_start_time_seconds') {
+                          if (isFinite(sample) && sample > 0) {
+                              processStart = sample;
+                          }
+                          return;
+                      }
+
+                      var labels = row.labels || {};
+                      var scope = 'dns';
+                      var groupLabels = [labels.server, labels.zone, labels.view];
+                      var series = 'request';
+                      if (metric.indexOf('coredns_proxy_') === 0) {
+                          if (labels.proxy_name !== 'forward') {
+                              return;
+                          }
+                          scope = 'forward';
+                          groupLabels = [labels.to];
+                          series = labels.rcode;
+                      }
+                      if (!groupLabels.every(function (label) { return typeof label === 'string'; })) {
+                          return;
+                      }
+
+                      var key = JSON.stringify(groupLabels);
+                      var group = groups[scope][key];
+                      if (!group) {
+                          group = {server: groupLabels[0], histograms: {}};
+                          if (scope === 'dns') {
+                              group.zone = groupLabels[1];
+                              group.view = groupLabels[2];
+                          }
+                          groups[scope][key] = group;
+                      }
+
+                      if (scope === 'forward' && ['NOERROR', 'NXDOMAIN', 'SERVFAIL'].indexOf(series) === -1) {
+                          return;
+                      }
+                      var histogram = group.histograms[series];
+                      if (!histogram) {
+                          histogram = {samples: Object.create(null)};
+                          group.histograms[series] = histogram;
+                      }
+                      var suffix = metric.slice(metric.lastIndexOf('_') + 1);
+                      var field = suffix === 'bucket' ? labels.le : suffix;
+                      if (!isFinite(sample) || sample < 0 || !field ||
+                          Object.prototype.hasOwnProperty.call(histogram.samples, field)) {
+                          histogram.invalid = true;
+                          return;
+                      }
+                      histogram.samples[field] = sample;
+                  });
+
+                  var result = {};
+                  Object.keys(groups).forEach(function (scope) {
+                      result[scope] = Object.keys(groups[scope]).map(function (key) {
+                          var group = groups[scope][key];
+                          group.scrapeId = scrapeId;
+                          group.processStart = processStart;
+                          return group;
+                      });
+                  });
+                  return JSON.stringify(result);
+          master_item:
+            key: coredns.raw
       discovery_rules:
         - uuid: 75829bf4240145a19e7c09d4772a4f4d
           name: 'CoreDNS Proxy request durations'
@@ -33,7 +117,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NOERROR",le="0.032",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NOERROR",le="0.032",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -51,7 +135,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NOERROR",le="0.256",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NOERROR",le="0.256",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -69,7 +153,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NOERROR",le="1.024",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NOERROR",le="1.024",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -87,7 +171,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NOERROR",le="2.048",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NOERROR",le="2.048",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -105,7 +189,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NOERROR",le="4.096",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NOERROR",le="4.096",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -123,7 +207,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NOERROR",le="8.192",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NOERROR",le="8.192",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -141,7 +225,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NXDOMAIN",le="0.032",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NXDOMAIN",le="0.032",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -159,7 +243,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NXDOMAIN",le="0.256",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NXDOMAIN",le="0.256",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -177,7 +261,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NXDOMAIN",le="1.024",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NXDOMAIN",le="1.024",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -195,7 +279,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NXDOMAIN",le="2.048",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NXDOMAIN",le="2.048",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -213,7 +297,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NXDOMAIN",le="4.096",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NXDOMAIN",le="4.096",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -231,7 +315,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="NXDOMAIN",le="8.192",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="NXDOMAIN",le="8.192",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -249,7 +333,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="SERVFAIL",le="0.032",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="SERVFAIL",le="0.032",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -267,7 +351,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="SERVFAIL",le="0.256",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="SERVFAIL",le="0.256",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -285,7 +369,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="SERVFAIL",le="1.024",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="SERVFAIL",le="1.024",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -303,7 +387,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="SERVFAIL",le="2.048",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="SERVFAIL",le="2.048",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -321,7 +405,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="SERVFAIL",le="4.096",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="SERVFAIL",le="4.096",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -339,7 +423,7 @@ zabbix_export:
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
-                    - 'coredns_proxy_request_duration_seconds_bucket{rcode="SERVFAIL",le="8.192",to="{#SERVER}"}'
+                    - 'coredns_proxy_request_duration_seconds_bucket{proxy_name="forward",rcode="SERVFAIL",le="8.192",to="{#SERVER}"}'
                     - value
                     - ''
                   error_handler: CUSTOM_VALUE
@@ -350,6 +434,211 @@ zabbix_export:
               tags:
                 - tag: Application
                   value: DNS
+            - uuid: ff3d0facf4cc4d318bbf0a2c8493e2ba
+              name: 'DNS forward {#SERVER}: Latency histogram snapshot'
+              type: DEPENDENT
+              key: 'coredns.forward.latency.snapshot["{#SERVER}"]'
+              history: 1d
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.forward[?(@.server == "{#SERVER}")].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '{}'
+              master_item:
+                key: coredns.latency.histograms
+            - uuid: 571ca7e218774689a417d094710f5510
+              name: 'DNS forward {#SERVER}: Interval latency statistics'
+              type: CALCULATED
+              key: 'coredns.forward.latency.interval["{#SERVER}"]'
+              delay: 15s
+              history: '0'
+              value_type: TEXT
+              params: 'concat("[",last(//coredns.forward.latency.snapshot["{#SERVER}"],#1),",",last(//coredns.forward.latency.snapshot["{#SERVER}"],#2),"]")'
+              preprocessing: &coredns_latency_preprocessing
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '0'
+                    - 'not enough data'
+                  error_handler: DISCARD_VALUE
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var snapshots = JSON.parse(value);
+                      var current = snapshots[0];
+                      var previous = snapshots[1];
+                      if (!current.scrapeId || !previous.scrapeId || current.scrapeId <= previous.scrapeId ||
+                          current.processStart !== previous.processStart) {
+                          return null;
+                      }
+
+                      function isCount(sample) {
+                          return typeof sample === 'number' && sample >= 0 &&
+                              sample <= 9007199254740991 && Math.floor(sample) === sample;
+                      }
+
+                      function latency(now, before) {
+                          if (!before || now.invalid || before.invalid) {
+                              return null;
+                          }
+
+                          var latest = now.samples;
+                          var earlier = before.samples;
+                          if (!isCount(latest.count) || !isCount(earlier.count) ||
+                              latest['+Inf'] !== latest.count || earlier['+Inf'] !== earlier.count ||
+                              typeof latest.sum !== 'number' || typeof earlier.sum !== 'number') {
+                              return null;
+                          }
+                          var count = latest.count - earlier.count;
+                          var sum = latest.sum - earlier.sum;
+                          if (count <= 0 || sum < 0) {
+                              return null;
+                          }
+
+                          var rank = 0.95 * count;
+                          var p95;
+                          var lowerBound = 0;
+                          var previousLatest = 0;
+                          var previousEarlier = 0;
+                          var previousDelta = 0;
+                          // Both CoreDNS histograms use 16 finite buckets starting at 0.25 ms.
+                          for (var index = 0; index < 16; index++) {
+                              var bound = 0.00025 * Math.pow(2, index);
+                              var latestCount = latest[String(bound)];
+                              var earlierCount = earlier[String(bound)];
+                              var delta = latestCount - earlierCount;
+                              if (!isCount(latestCount) || !isCount(earlierCount) ||
+                                  latestCount < previousLatest || latestCount > latest.count ||
+                                  earlierCount < previousEarlier || earlierCount > earlier.count ||
+                                  delta < previousDelta || delta > count) {
+                                  return null;
+                              }
+                              if (p95 === undefined && delta >= rank) {
+                                  p95 = (lowerBound + (bound - lowerBound) * (rank - previousDelta) /
+                                      (delta - previousDelta)) * 1000;
+                              }
+                              lowerBound = bound;
+                              previousLatest = latestCount;
+                              previousEarlier = earlierCount;
+                              previousDelta = delta;
+                          }
+
+                          var mean = sum / count * 1000;
+                          if (!isFinite(mean)) {
+                              return null;
+                          }
+                          // Leaving p95 undefined omits it when the rank falls in +Inf.
+                          return {mean: mean, p95: p95};
+                      }
+
+                      var result = {scrapeId: current.scrapeId};
+                      var hasLatency = false;
+                      Object.keys(current.histograms).forEach(function (series) {
+                          var stats = latency(current.histograms[series], previous.histograms[series]);
+                          if (stats) {
+                              result[series] = stats;
+                              hasLatency = true;
+                          }
+                      });
+                      return hasLatency ? JSON.stringify(result) : null;
+                - type: DISCARD_UNCHANGED
+            - uuid: 70fa079833c9468aa578c5d5c52d8b38
+              name: 'DNS forward {#SERVER} NOERROR: Mean response time'
+              type: DEPENDENT
+              key: 'coredns.forward.latency.mean["{#SERVER}",NOERROR]'
+              value_type: FLOAT
+              units: '!ms'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.NOERROR.mean
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'coredns.forward.latency.interval["{#SERVER}"]'
+              tags:
+                - tag: Application
+                  value: DNS
+            - uuid: c250ef5fbbe641598fb46a783c1fe97f
+              name: 'DNS forward {#SERVER} NOERROR: p95 response time'
+              type: DEPENDENT
+              key: 'coredns.forward.latency.p95["{#SERVER}",NOERROR]'
+              value_type: FLOAT
+              units: '!ms'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.NOERROR.p95
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'coredns.forward.latency.interval["{#SERVER}"]'
+              tags:
+                - tag: Application
+                  value: DNS
+            - uuid: 001925b8f14145fbb7c8db0e86019f26
+              name: 'DNS forward {#SERVER} NXDOMAIN: Mean response time'
+              type: DEPENDENT
+              key: 'coredns.forward.latency.mean["{#SERVER}",NXDOMAIN]'
+              value_type: FLOAT
+              units: '!ms'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.NXDOMAIN.mean
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'coredns.forward.latency.interval["{#SERVER}"]'
+              tags:
+                - tag: Application
+                  value: DNS
+            - uuid: f3503bbc9d184732980517e11bd452ac
+              name: 'DNS forward {#SERVER} NXDOMAIN: p95 response time'
+              type: DEPENDENT
+              key: 'coredns.forward.latency.p95["{#SERVER}",NXDOMAIN]'
+              value_type: FLOAT
+              units: '!ms'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.NXDOMAIN.p95
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'coredns.forward.latency.interval["{#SERVER}"]'
+              tags:
+                - tag: Application
+                  value: DNS
+            - uuid: 243420e567144e2f8653425e26af824e
+              name: 'DNS forward {#SERVER} SERVFAIL: Mean response time'
+              type: DEPENDENT
+              key: 'coredns.forward.latency.mean["{#SERVER}",SERVFAIL]'
+              value_type: FLOAT
+              units: '!ms'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.SERVFAIL.mean
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'coredns.forward.latency.interval["{#SERVER}"]'
+              tags:
+                - tag: Application
+                  value: DNS
+            - uuid: d2bc40a712954317ad3a47f91b380c0d
+              name: 'DNS forward {#SERVER} SERVFAIL: p95 response time'
+              type: DEPENDENT
+              key: 'coredns.forward.latency.p95["{#SERVER}",SERVFAIL]'
+              value_type: FLOAT
+              units: '!ms'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.SERVFAIL.p95
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'coredns.forward.latency.interval["{#SERVER}"]'
+              tags:
+                - tag: Application
+                  value: DNS
           graph_prototypes:
             - uuid: 404ffc5221364d8f879539187ca97250
               name: 'DNS forward durations {#SERVER} NOERROR'
@@ -357,119 +646,53 @@ zabbix_export:
               show_triggers: 'NO'
               graph_items:
                 - color: 199C0D
+                  calc_fnc: AVG
                   item:
                     host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NOERROR,0.032]'
+                    key: 'coredns.forward.latency.mean["{#SERVER}",NOERROR]'
                 - sortorder: '1'
                   color: F63100
+                  calc_fnc: MAX
                   item:
                     host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NOERROR,0.256]'
-                - sortorder: '2'
-                  color: 2774A4
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NOERROR,1.024]'
-                - sortorder: '3'
-                  color: F7941D
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NOERROR,2.048]'
-                - sortorder: '4'
-                  color: FC6EA3
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NOERROR,4.096]'
-                - sortorder: '5'
-                  color: 6C59DC
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NOERROR,8.192]'
+                    key: 'coredns.forward.latency.p95["{#SERVER}",NOERROR]'
             - uuid: 820c5df8fbc844ac83bdbdd388a170f1
               name: 'DNS forward durations {#SERVER} NXDOMAIN'
               graph_items:
                 - color: 199C0D
-                  calc_fnc: MIN
+                  calc_fnc: AVG
                   item:
                     host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NXDOMAIN,0.032]'
+                    key: 'coredns.forward.latency.mean["{#SERVER}",NXDOMAIN]'
                 - sortorder: '1'
                   color: F63100
-                  calc_fnc: MIN
+                  calc_fnc: MAX
                   item:
                     host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NXDOMAIN,0.256]'
-                - sortorder: '2'
-                  color: 2774A4
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NXDOMAIN,1.024]'
-                - sortorder: '3'
-                  color: F7941D
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NXDOMAIN,2.048]'
-                - sortorder: '4'
-                  color: FC6EA3
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NXDOMAIN,4.096]'
-                - sortorder: '5'
-                  color: 6C59DC
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},NXDOMAIN,8.192]'
+                    key: 'coredns.forward.latency.p95["{#SERVER}",NXDOMAIN]'
             - uuid: 0b8f66226be3454a80836e66e038feca
               name: 'DNS forward durations {#SERVER} SERVFAIL'
               graph_items:
                 - color: 199C0D
-                  calc_fnc: MIN
+                  calc_fnc: AVG
                   item:
                     host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},SERVFAIL,0.032]'
+                    key: 'coredns.forward.latency.mean["{#SERVER}",SERVFAIL]'
                 - sortorder: '1'
                   color: F63100
-                  calc_fnc: MIN
+                  calc_fnc: MAX
                   item:
                     host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},SERVFAIL,0.256]'
-                - sortorder: '2'
-                  color: 2774A4
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},SERVFAIL,1.024]'
-                - sortorder: '3'
-                  color: F7941D
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},SERVFAIL,2.048]'
-                - sortorder: '4'
-                  color: FC6EA3
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},SERVFAIL,4.096]'
-                - sortorder: '5'
-                  color: 6C59DC
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.forward.durations[{#SERVER},SERVFAIL,8.192]'
+                    key: 'coredns.forward.latency.p95["{#SERVER}",SERVFAIL]'
           master_item:
-            key: coredns.raw
+            key: coredns.latency.histograms
           lld_macro_paths:
             - lld_macro: '{#SERVER}'
-              path: $.labels.to
+              path: $.server
           preprocessing:
-            - type: PROMETHEUS_TO_JSON
+            - type: JSONPATH
               parameters:
-                - coredns_proxy_request_duration_seconds_bucket
+                - $.forward
         - uuid: 7896d81f96334f93a3d6ffe8fe7dec8d
           name: 'CoreDNS Request Count IPv4'
           type: DEPENDENT
@@ -1419,7 +1642,7 @@ zabbix_export:
               parameters:
                 - 'coredns_dns_requests_total{family="1"}'
             - type: JAVASCRIPT
-              parameters:
+              parameters: &coredns_unique_request_groups
                 - |
                   var seen = Object.create(null);
                   var rows = JSON.parse(value).filter(function (row) {
@@ -2380,6 +2603,8 @@ zabbix_export:
             - type: PROMETHEUS_TO_JSON
               parameters:
                 - 'coredns_dns_requests_total{family="2"}'
+            - type: JAVASCRIPT
+              parameters: *coredns_unique_request_groups
         - uuid: ae0a6484757c4080b3630128656ff694
           name: 'CoreDNS Request durations'
           type: DEPENDENT
@@ -2660,7 +2885,7 @@ zabbix_export:
             - uuid: 19fe6bba393641898255bb0419831d29
               name: 'DNS Request durations raw {#SERVER} {#ZONE} {#VIEW} 8.192'
               type: DEPENDENT
-              key: 'coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},8.192]'
+              key: 'coredns.request.durations.raw["{#SERVER}","{#ZONE}","{#VIEW}",8.192]'
               preprocessing:
                 - type: PROMETHEUS_PATTERN
                   parameters:
@@ -2694,7 +2919,7 @@ zabbix_export:
               name: 'DNS Request durations {#SERVER},{#ZONE},{#VIEW},+Inf'
               type: CALCULATED
               key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},+Inf]'
-              params: 'last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},+Inf])-last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},8.192])'
+              params: 'last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},+Inf])-last(//coredns.request.durations.raw["{#SERVER}","{#ZONE}","{#VIEW}",8.192])'
               tags:
                 - tag: Application
                   value: DNS
@@ -2709,7 +2934,7 @@ zabbix_export:
             - uuid: 5a00ab9d0b084fe8994ae2aa2b7f733f
               name: 'DNS Request durations {#SERVER},{#ZONE},{#VIEW},0.0005'
               type: CALCULATED
-              key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.0005]'
+              key: 'coredns.request.durations["{#SERVER}","{#ZONE}","{#VIEW}",0.0005]'
               params: 'last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},0.0005])-last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},0.00025])'
               tags:
                 - tag: Application
@@ -2822,7 +3047,62 @@ zabbix_export:
               name: 'DNS Request durations {#SERVER},{#ZONE},{#VIEW},8.192'
               type: CALCULATED
               key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},8.192]'
-              params: 'last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},8.192])-last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},4.096])'
+              params: 'last(//coredns.request.durations.raw["{#SERVER}","{#ZONE}","{#VIEW}",8.192])-last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},4.096])'
+              tags:
+                - tag: Application
+                  value: DNS
+            - uuid: 6872bea148ca4c148cdce645a8d09dfd
+              name: 'DNS request {#SERVER} {#ZONE} {#VIEW}: Latency histogram snapshot'
+              type: DEPENDENT
+              key: 'coredns.request.latency.snapshot["{#SERVER}","{#ZONE}","{#VIEW}"]'
+              history: 1d
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.dns[?(@.server == "{#SERVER}" && @.zone == "{#ZONE}" && @.view == "{#VIEW}")].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '{}'
+              master_item:
+                key: coredns.latency.histograms
+            - uuid: 241a27273b1f4038b831bc0834484acc
+              name: 'DNS request {#SERVER} {#ZONE} {#VIEW}: Interval latency statistics'
+              type: CALCULATED
+              key: 'coredns.request.latency.interval["{#SERVER}","{#ZONE}","{#VIEW}"]'
+              delay: 15s
+              history: '0'
+              value_type: TEXT
+              params: 'concat("[",last(//coredns.request.latency.snapshot["{#SERVER}","{#ZONE}","{#VIEW}"],#1),",",last(//coredns.request.latency.snapshot["{#SERVER}","{#ZONE}","{#VIEW}"],#2),"]")'
+              preprocessing: *coredns_latency_preprocessing
+            - uuid: abeae1c9bc354783ab890c198ed32a80
+              name: 'DNS request {#SERVER} {#ZONE} {#VIEW}: Mean response time'
+              type: DEPENDENT
+              key: 'coredns.request.latency.mean["{#SERVER}","{#ZONE}","{#VIEW}"]'
+              value_type: FLOAT
+              units: '!ms'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.request.mean
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'coredns.request.latency.interval["{#SERVER}","{#ZONE}","{#VIEW}"]'
+              tags:
+                - tag: Application
+                  value: DNS
+            - uuid: 71095213c2f641eeb496dd5e08083e69
+              name: 'DNS request {#SERVER} {#ZONE} {#VIEW}: p95 response time'
+              type: DEPENDENT
+              key: 'coredns.request.latency.p95["{#SERVER}","{#ZONE}","{#VIEW}"]'
+              value_type: FLOAT
+              units: '!ms'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.request.p95
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'coredns.request.latency.interval["{#SERVER}","{#ZONE}","{#VIEW}"]'
               tags:
                 - tag: Application
                   value: DNS
@@ -2830,120 +3110,30 @@ zabbix_export:
             - uuid: 59cf59f8cd0b4b1e8fcc1d12373e8c3d
               name: 'DNS Request durations {#SERVER} {#ZONE} {#VIEW}'
               graph_items:
-                - color: 3949AB
-                  calc_fnc: MIN
+                - color: 199C0D
+                  calc_fnc: AVG
                   item:
                     host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.00025]'
+                    key: 'coredns.request.latency.mean["{#SERVER}","{#ZONE}","{#VIEW}"]'
                 - sortorder: '1'
-                  color: 1E88E5
-                  calc_fnc: MIN
+                  color: F63100
+                  calc_fnc: MAX
                   item:
                     host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.0005]'
-                - sortorder: '2'
-                  color: 039BE5
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.001]'
-                - sortorder: '3'
-                  color: 29B6F6
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.002]'
-                - sortorder: '4'
-                  color: 80DEEA
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.004]'
-                - sortorder: '5'
-                  color: 4DB6AC
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.008]'
-                - sortorder: '6'
-                  color: '009688'
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.016]'
-                - sortorder: '7'
-                  color: 66BB6A
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.032]'
-                - sortorder: '8'
-                  color: 7CB342
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.064]'
-                - sortorder: '9'
-                  color: CDDC39
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.128]'
-                - sortorder: '10'
-                  color: FDD835
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.256]'
-                - sortorder: '11'
-                  color: FFB300
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},0.512]'
-                - sortorder: '12'
-                  color: FB8C00
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},1.024]'
-                - sortorder: '13'
-                  color: F4511E
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},2.048]'
-                - sortorder: '14'
-                  color: C2185B
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},4.096]'
-                - sortorder: '15'
-                  color: E91E63
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},8.192]'
-                - sortorder: '16'
-                  color: FF0000
-                  calc_fnc: MIN
-                  item:
-                    host: CoreDNS
-                    key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},+Inf]'
+                    key: 'coredns.request.latency.p95["{#SERVER}","{#ZONE}","{#VIEW}"]'
           master_item:
-            key: coredns.raw
+            key: coredns.latency.histograms
           lld_macro_paths:
             - lld_macro: '{#SERVER}'
-              path: $.labels.server
+              path: $.server
             - lld_macro: '{#VIEW}'
-              path: $.labels.view
+              path: $.view
             - lld_macro: '{#ZONE}'
-              path: $.labels.zone
+              path: $.zone
           preprocessing:
-            - type: PROMETHEUS_TO_JSON
+            - type: JSONPATH
               parameters:
-                - coredns_dns_request_duration_seconds_bucket
+                - $.dns
     - uuid: 442c2489f687426a93916ad0fe701a2b
       template: CoreDNS Cache
       name: CoreDNS Cache
