@@ -2744,7 +2744,7 @@ zabbix_export:
               name: 'DNS Request durations {#SERVER},{#ZONE},{#VIEW},+Inf'
               type: CALCULATED
               key: 'coredns.request.durations[{#SERVER},{#ZONE},{#VIEW},+Inf]'
-              params: 'last(//coredns.request.durations.count[{#SERVER},{#ZONE},{#VIEW}])-last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},+Inf])'
+              params: 'last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},+Inf])-last(//coredns.request.durations.raw[{#SERVER},{#ZONE},{#VIEW},8.192])'
               tags:
                 - tag: Application
                   value: DNS
